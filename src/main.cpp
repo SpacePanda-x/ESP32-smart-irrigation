@@ -6,6 +6,7 @@
 #include <LittleFS.h>
 #include <time.h>
 #include "weather.h"
+#include <ArduinoJson.h>
 
 byte valve_pins[] = {0, 1}; // pin headers for valve relays
 
@@ -17,10 +18,11 @@ const char *password = WIFI_PASS;
 const char *ntpServer = "pool.ntp.org";
 String device_name = "GardenIrrigation"; // NO SPACES
 
-int frequency[NUM_VALVES] = {1, 3};                    // Days between irrigation
-float irrigation_rate[NUM_VALVES] = {4.0, 600};        // litres/hr
-float irrigation_area[NUM_VALVES] = {0.1256637060, 6}; // m2 for in-ground
-float Kc[NUM_VALVES] = {0.5, 1};                       // crop coefficients
+String valve_names[NUM_VALVES];    // Name for reference in UI
+int frequency[NUM_VALVES];         // Days between irrigation
+float irrigation_rate[NUM_VALVES]; // litres/hr
+float irrigation_area[NUM_VALVES]; // m2 for in-ground
+float Kc[NUM_VALVES];              // crop coefficients
 
 unsigned long update = 0;
 
@@ -51,6 +53,149 @@ unsigned long getTime()
 String historyFilePath(int i)
 {
   return "/history" + String(i) + ".txt";
+}
+
+void saveValveSettings()
+{
+  JsonDocument doc;
+
+  for (int i = 0; i < sizeof(valve_pins); ++i)
+  {
+    char valveKey[16];
+    snprintf(valveKey, sizeof(valveKey), "Valve%d", i + 1);
+    JsonObject valve = doc[valveKey].to<JsonObject>();
+    valve["pin"] = valve_pins[i];
+    valve["name"] = valve_names[i];
+    valve["frequency"] = frequency[i];
+    valve["rate"] = irrigation_rate[i];
+    valve["area"] = irrigation_area[i];
+    valve["Kc"] = Kc[i];
+  }
+
+  File file = LittleFS.open("/valves.json", "w"); // Open the file for writing
+
+  if (!file)
+  {
+    Log.println("Failed to open file for writing");
+    return;
+  }
+
+  doc.shrinkToFit();
+
+  serializeJson(doc, file);   // Serialize JSON into the file
+  serializeJson(doc, Serial); // Serialize JSON into the file
+
+  file.close(); // Close the file
+}
+
+void loadValveSettings()
+{
+  // Check if the file exists
+  if (!LittleFS.exists("/valves.json"))
+  {
+    Log.println("File does not exist yet. Creating it...");
+    saveValveSettings(); // Create default settings
+    return;              // Exit function
+  }
+
+  // File exists, read from it
+  File file = LittleFS.open("/valves.json", "r");
+  if (!file)
+  {
+    Log.println("Failed to open file for reading");
+    return;
+  }
+
+  size_t size = file.size();
+  std::unique_ptr<char[]> buf(new char[size]);
+
+  file.readBytes(buf.get(), size);
+  JsonDocument doc;
+  auto deserializeError = deserializeJson(doc, buf.get());
+
+  if (deserializeError)
+  {
+    Log.print("deserializeJson() failed: ");
+    switch (deserializeError.code())
+    {
+    case DeserializationError::NoMemory:
+      Log.println("Not enough memory");
+      break;
+    case DeserializationError::InvalidInput:
+      Log.println("Invalid input");
+      break;
+    }
+  }
+
+  // Load valve settings from JSON document
+  for (int i = 0; i < sizeof(valve_pins); ++i)
+  {
+    char valveKey[16];
+    snprintf(valveKey, sizeof(valveKey), "Valve%d", i + 1);
+
+    if (!doc[valveKey].is<JsonObject>())
+    {
+      Log.printf("Valve settings for Valve %d does not exist in the file, using default values...\n", i + 1);
+      valve_names[i] = "";       // Set name to empty string if it doesn't exist
+      frequency[i] = 0;          // Default value is 0
+      irrigation_rate[i] = 0.0f; // Default value is 0.0
+      irrigation_area[i] = 0.0f; // Default value is 0.0
+      Kc[i] = 0.0f;              // Default value is 0.0
+      continue;                  // Skip to next valve
+    }
+
+    JsonObject valve = doc[valveKey].as<JsonObject>();
+
+    if (!valve["name"].is<String>())
+    {
+      Log.printf("Name for Valve %d does not exist in the file, using default value...\n", i + 1);
+      valve_names[i] = "Pin " + String(valve_pins[i]); // Set name to Pin and pin number if it doesn't exist
+    }
+    else
+    {
+      valve_names[i] = valve["name"].as<String>();
+    }
+
+    if (!valve["frequency"].is<int>())
+    {
+      Log.printf("Frequency for Valve %d does not exist in the file, using default value...\n", i + 1);
+      frequency[i] = 0; // Default value is 0
+    }
+    else
+    {
+      frequency[i] = valve["frequency"].as<int>();
+    }
+
+    if (!valve["rate"].is<float>())
+    {
+      Log.printf("Rate for Valve %d does not exist in the file, using default value...\n", i + 1);
+      irrigation_rate[i] = 0.0f; // Default value is 0.0
+    }
+    else
+    {
+      irrigation_rate[i] = valve["rate"].as<float>();
+    }
+
+    if (!valve["area"].is<float>())
+    {
+      Log.printf("Area for Valve %d does not exist in the file, using default value...\n", i + 1);
+      irrigation_area[i] = 0.0f; // Default value is 0.0
+    }
+    else
+    {
+      irrigation_area[i] = valve["area"].as<float>();
+    }
+
+    if (!valve["Kc"].is<float>())
+    {
+      Log.printf("Kc for Valve %d does not exist in the file, using default value...\n", i + 1);
+      Kc[i] = 0.0f; // Default value is 0.0
+    }
+    else
+    {
+      Kc[i] = valve["Kc"].as<float>();
+    }
+  }
 }
 
 void saveCompletedTask(int valve, const IrrigationTask &task)
@@ -177,7 +322,7 @@ void evaluateIrrigationSchedule(const WeatherData &data)
 
   for (int i = 0; i < NUM_VALVES; i++)
   {
-    Log.printf("Evaluating irrigation for valve %d...\n", i);
+    Log.printf("Evaluating irrigation for valve %d...\n", i + 1);
     IrrigationTask last = loadHistory(i);
     if (now - (last.scheduled_time - 3600) > (frequency[i] * 24 * 60 * 60))
     { // if more than the irrigation frequency has passed since last irrigation - 1hr (sunset change forgiveness)
@@ -189,8 +334,16 @@ void evaluateIrrigationSchedule(const WeatherData &data)
         et0_sum += data.evapotranspiration[j];
         precipitation_sum += data.precipitation[j];
       }
+      // water needed = (water_evaporated*crop_constant) - total rain - today's forecasted rain
       float water_needed = (et0_sum * Kc[i]) - precipitation_sum - data.precipitation.back(); // mm
       Log.printf("frequency: %d, et0_sum: %.2f, Kc: %.2f, precipitation_sum: %.2f, water_needed: %.2f\n", frequency[i], et0_sum, Kc[i], precipitation_sum, water_needed);
+
+      if (water_needed <= 0)
+      {
+        Log.printf("Negative water needed for valve %d, not scheduling irrigation.\n", i + 1);
+        continue;
+      }
+
       scheduleIrrigation(i, water_needed, data.sunrise.back());
     }
   }
@@ -257,6 +410,7 @@ void setup(void)
     Serial.println("WiFi Failed!");
     return;
   }
+  loadValveSettings();
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
   Serial.print("MAC: ");
@@ -280,7 +434,6 @@ void loop(void)
   ElegantOTA.loop();
   if (now >= update)
   {
-
     WeatherData weather;
     if (getWeather(weather))
     {
