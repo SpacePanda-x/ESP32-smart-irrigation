@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: garden --default; /*https://daisyui.com/docs/themes/?lang=en*/
+}
