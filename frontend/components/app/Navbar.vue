@@ -1,7 +1,7 @@
 <template>
   <div class="navbar bg-base-100 shadow-sm">
     <div class="navbar-start">
-      <NuxtLink to="/" class="btn btn-ghost btn-circle">
+      <NuxtLink :to="{ name: 'index' }" class="btn btn-ghost btn-circle">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
@@ -54,7 +54,7 @@
         </ul>
       </div> -->
 
-      <NuxtLink to="/settings" class="btn btn-ghost btn-circle">
+      <NuxtLink :to="{ name: 'settings' }" class="btn btn-ghost btn-circle">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"

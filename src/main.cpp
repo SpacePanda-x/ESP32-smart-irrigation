@@ -8,9 +8,9 @@
 #include "weather.h"
 #include <ArduinoJson.h>
 
-byte valve_pins[] = {0, 1}; // pin headers for valve relays
+byte valve_gpios[] = {0, 1}; // gpio headers for valve relays
 
-#define NUM_VALVES sizeof(valve_pins)
+#define NUM_VALVES sizeof(valve_gpios)
 #define LOG_BUFFER_SIZE 256
 
 const char *ssid = WIFI_SSID;
@@ -19,6 +19,9 @@ const char *ntpServer = "pool.ntp.org";
 String device_name = "GardenIrrigation"; // NO SPACES
 
 String valve_names[NUM_VALVES];    // Name for reference in UI
+bool valve_active[NUM_VALVES];     // Valve Activated?
+bool use_ET0[NUM_VALVES];          // Use ET0 for irrigation?
+float mm[NUM_VALVES];              // mm lost before irrigation
 int frequency[NUM_VALVES];         // Days between irrigation
 float irrigation_rate[NUM_VALVES]; // litres/hr
 float irrigation_area[NUM_VALVES]; // m2 for in-ground
@@ -59,13 +62,15 @@ void saveValveSettings()
 {
   JsonDocument doc;
 
-  for (int i = 0; i < sizeof(valve_pins); ++i)
+  for (int i = 0; i < sizeof(valve_gpios); ++i)
   {
-    char valveKey[16];
-    snprintf(valveKey, sizeof(valveKey), "Valve%d", i + 1);
+    char valveKey[8];
+    snprintf(valveKey, sizeof(valveKey), "%d", i + 1);
     JsonObject valve = doc[valveKey].to<JsonObject>();
-    valve["pin"] = valve_pins[i];
     valve["name"] = valve_names[i];
+    valve["active"] = valve_active[i];
+    valve["use_ET0"] = use_ET0[i];
+    valve["mm"] = mm[i];
     valve["frequency"] = frequency[i];
     valve["rate"] = irrigation_rate[i];
     valve["area"] = irrigation_area[i];
@@ -128,15 +133,17 @@ void loadValveSettings()
   }
 
   // Load valve settings from JSON document
-  for (int i = 0; i < sizeof(valve_pins); ++i)
+  for (int i = 0; i < sizeof(valve_gpios); ++i)
   {
-    char valveKey[16];
-    snprintf(valveKey, sizeof(valveKey), "Valve%d", i + 1);
+    char valveKey[8];
+    snprintf(valveKey, sizeof(valveKey), "%d", i + 1);
 
     if (!doc[valveKey].is<JsonObject>())
     {
-      Log.printf("Valve settings for Valve %d does not exist in the file, using default values...\n", i + 1);
+      Log.printf("Valve settings for GPIO %d does not exist in the file, using default values...\n", i + 1);
       valve_names[i] = "";       // Set name to empty string if it doesn't exist
+      use_ET0[i] = false;        // Default value is false
+      mm[i] = 0.0f;              // Default value is 0.0
       frequency[i] = 0;          // Default value is 0
       irrigation_rate[i] = 0.0f; // Default value is 0.0
       irrigation_area[i] = 0.0f; // Default value is 0.0
@@ -149,11 +156,41 @@ void loadValveSettings()
     if (!valve["name"].is<String>())
     {
       Log.printf("Name for Valve %d does not exist in the file, using default value...\n", i + 1);
-      valve_names[i] = "Pin " + String(valve_pins[i]); // Set name to Pin and pin number if it doesn't exist
+      valve_names[i] = "GPIO " + String(valve_gpios[i]); // Set name to GPIO and gpio number if it doesn't exist
     }
     else
     {
       valve_names[i] = valve["name"].as<String>();
+    }
+
+    if (!valve["active"].is<bool>())
+    {
+      Log.printf("valve_active for Valve %d does not exist in the file, using default value...\n", i + 1);
+      valve_active[i] = 0; // Default value is 0
+    }
+    else
+    {
+      valve_active[i] = valve["ET0"].as<bool>();
+    }
+
+    if (!valve["ET0"].is<bool>())
+    {
+      Log.printf("use_ET0 for Valve %d does not exist in the file, using default value...\n", i + 1);
+      use_ET0[i] = 0; // Default value is 0
+    }
+    else
+    {
+      use_ET0[i] = valve["ET0"].as<bool>();
+    }
+
+    if (!valve["mm"].is<float>())
+    {
+      Log.printf("MM for Valve %d does not exist in the file, using default value...\n", i + 1);
+      mm[i] = 0.0; // Default value is 0.0
+    }
+    else
+    {
+      mm[i] = valve["mm"].as<float>();
     }
 
     if (!valve["frequency"].is<int>())
@@ -296,7 +333,7 @@ void executeIrrigationTasks()
       if (irrigationQueue[i].scheduled_time <= now)
       {
         current_valve = irrigationQueue[i].valve;
-        digitalWrite(valve_pins[current_valve], HIGH);
+        digitalWrite(valve_gpios[current_valve], HIGH);
         end_time = millis() + irrigationQueue[i].duration_ms;
         float litres = (irrigation_rate[current_valve] * (end_time - millis()) / 3600000.0);
         Log.printf("[Valve %d] Started for %lu s, giving %.2f L\n", current_valve, irrigationQueue[i].duration_ms / 1000, litres);
@@ -310,7 +347,7 @@ void executeIrrigationTasks()
 
   if (running && millis() >= end_time)
   {
-    digitalWrite(valve_pins[current_valve], LOW);
+    digitalWrite(valve_gpios[current_valve], LOW);
     Log.printf("[Valve %d] Finished\n", current_valve);
     running = false;
   }
@@ -410,7 +447,13 @@ void setup(void)
     Serial.println("WiFi Failed!");
     return;
   }
+
+  LittleFS.begin(true);
+  for (int i = 0; i < NUM_VALVES; i++)
+    pinMode(i, OUTPUT);
+
   loadValveSettings();
+  saveValveSettings(); // remove before publish
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
   Serial.print("MAC: ");
@@ -420,10 +463,6 @@ void setup(void)
   WebSerial.onMessage(serialCommands);
   ElegantOTA.begin(&server);
   server.begin();
-
-  LittleFS.begin(true);
-  for (int i = 0; i < NUM_VALVES; i++)
-    pinMode(i, OUTPUT);
 
   // clearAllHistory();
 }
