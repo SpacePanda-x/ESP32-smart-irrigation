@@ -21,6 +21,7 @@ String device_name = "GardenIrrigation"; // NO SPACES
 String valve_names[NUM_VALVES];    // Name for reference in UI
 bool valve_active[NUM_VALVES];     // Valve Activated?
 bool use_ET0[NUM_VALVES];          // Use ET0 for irrigation?
+bool under_cover[NUM_VALVES];      // Is the area covered (will it see rainfall)
 float mm[NUM_VALVES];              // mm lost before irrigation
 int frequency[NUM_VALVES];         // Days between irrigation
 float irrigation_rate[NUM_VALVES]; // litres/hr
@@ -70,6 +71,7 @@ void saveValveSettings()
     valve["name"] = valve_names[i];
     valve["active"] = valve_active[i];
     valve["use_ET0"] = use_ET0[i];
+    valve["under_cover"] = valve_active[i];
     valve["mm"] = mm[i];
     valve["frequency"] = frequency[i];
     valve["rate"] = irrigation_rate[i];
@@ -183,9 +185,19 @@ void loadValveSettings()
       use_ET0[i] = valve["ET0"].as<bool>();
     }
 
+    if (!valve["under_cover"].is<bool>())
+    {
+      Log.printf("under_cover for Valve %d does not exist in the file, using default value...\n", i + 1);
+      under_cover[i] = 0; // Default value is 0
+    }
+    else
+    {
+      under_cover[i] = valve["under_cover"].as<bool>();
+    }
+
     if (!valve["mm"].is<float>())
     {
-      Log.printf("MM for Valve %d does not exist in the file, using default value...\n", i + 1);
+      Log.printf("mm for Valve %d does not exist in the file, using default value...\n", i + 1);
       mm[i] = 0.0; // Default value is 0.0
     }
     else

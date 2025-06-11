@@ -1,4 +1,4 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: nord --default; /*https://daisyui.com/docs/themes/?lang=en*/
+  themes: fantasy --default; /*https://daisyui.com/docs/themes/?lang=en*/
 }
