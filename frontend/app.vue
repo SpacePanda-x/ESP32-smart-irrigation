@@ -1,9 +1,7 @@
 <template>
-  <AppNavbar />
-  <NuxtPage />
+  <div>
+    <NuxtLayout>
+      <NuxtPage />
+    </NuxtLayout>
+  </div>
 </template>
-<script setup>
-import { useWebSocket } from "@/composables/useWebSocket";
-
-useWebSocket(); // Initializes WebSocket on app load
-</script>

@@ -8,9 +8,9 @@
 
     <div v-else>
       <div class="flex justify-center my-4">
-        <button class="btn btn-primary" @click="saveAll">💾 Save All</button>
+        <button class="btn btn-neutral" @click="saveAll">💾 Save All</button>
       </div>
-      <div class="toast toast-top toast-center">
+      <div class="toast toast-top">
         <div
           v-show="showAlert"
           class="alert alert-success shadow-lg transition-opacity duration-800"
@@ -36,7 +36,7 @@
       <div
         class="grid gap-6 justify-items-center [grid-template-columns:repeat(auto-fit,minmax(350px,1fr))]"
       >
-        <AppSettingsValveCard
+        <SettingsValveCard
           v-for="([key, valve], i) in valveSettings"
           :key="key"
           :gpio="key"

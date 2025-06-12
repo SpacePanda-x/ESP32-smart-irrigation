@@ -1,4 +1,39 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: fantasy --default; /*https://daisyui.com/docs/themes/?lang=en*/
+  themes: irrigation --default; /*, dracula --prefersdark; https://daisyui.com/docs/themes/?lang=en*/
+}
+
+@plugin "daisyui/theme" {
+  name: "irrigation";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(96% 0.016 293.756);
+  --color-base-200: oklch(94% 0.029 294.588);
+  --color-base-300: oklch(89% 0.057 293.283);
+  --color-base-content: oklch(38% 0.189 293.745);
+  --color-primary: oklch(80% 0.105 251.813);
+  --color-primary-content: oklch(28% 0.091 267.935);
+  --color-secondary: oklch(87% 0.006 286.286);
+  --color-secondary-content: oklch(14% 0.005 285.823);
+  --color-accent: oklch(90% 0.182 98.111);
+  --color-accent-content: oklch(28% 0.066 53.813);
+  --color-neutral: oklch(54% 0.281 293.009);
+  --color-neutral-content: oklch(96% 0.016 293.756);
+  --color-info: oklch(68% 0.169 237.323);
+  --color-info-content: oklch(97% 0.013 236.62);
+  --color-success: oklch(72% 0.219 149.579);
+  --color-success-content: oklch(98% 0.018 155.826);
+  --color-warning: oklch(79% 0.184 86.047);
+  --color-warning-content: oklch(98% 0.026 102.212);
+  --color-error: oklch(70% 0.191 22.216);
+  --color-error-content: oklch(97% 0.014 343.198);
+  --radius-selector: 2rem;
+  --radius-field: 2rem;
+  --radius-box: 2rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
 }
